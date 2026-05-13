@@ -1,120 +1,20 @@
-name: kjk
+
+name: Test-Schedule-Timing
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # عشان تشغله يدوي كمان
   schedule:
-    - cron: '0 1 * * *'
-    - cron: '5 6 * * *'
-    - cron: '10 11 * * *'
-    - cron: '15 16 * * *'
-    - cron: '20 21 * * *'
-    - cron: '25 2 * * *'
+    # هيشتغل كل دقيقة (لأغراض الاختبار بس)
+    - cron: '* * * * *'
+      timezone: 'Africa/Cairo'
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
-    - name: 55
-      run: |
-        docker run -d \
-          --name=kali-desktop \
-          --hostname=kali \
-          --cap-add=ALL \
-          --security-opt seccomp=unconfined \
-          --shm-size="6g" \
-          --memory="12g" \
-          --memory-swap="12g" \
-          --memory-reservation="10g" \
-          --cpus="4" \
-          --pids-limit=-1 \
-          -p 3000:3000 \
-          -p 5900:5900 \
-          -e PUID=0 \
-          -e PGID=0 \
-          -e TZ=Africa/Cairo \
-          -e VNC_PR_PASSWORD=password \
-          -e DISPLAY=:99 \
-          -v /dev/shm:/dev/shm \
-          linuxserver/kali-linux:latest
-        sleep 45
-
-    - name: Connect via Serveo Tunnel
-      run: |
-        mkdir -p ~/.ssh
-        cat > ~/.ssh/serveo_key << 'EOF'
-        -----BEGIN OPENSSH PRIVATE KEY-----
-        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
-        fvyGNukhvNjBAAAACXJvb3RAa2FsaQE=
-        -----END OPENSSH PRIVATE KEY-----
-        EOF
-        chmod 600 ~/.ssh/serveo_key
-        
-        ssh -tt -fN -i ~/.ssh/serveo_key \
-            -o StrictHostKeyChecking=no \
-            -o ServerAliveInterval=30 \
-            -o ServerAliveCountMax=5 \
-            -o ExitOnForwardFailure=yes \
-            -R ahmed1258842255844595568llllkjjn-server:80:localhost:3000 serveo.net
-
-    - name: kk
-      run: |
-        echo "✅"
-        echo "🌐"
-        
-        # حلقة لمنع الإغلاق الصامت من GitHub Actions
-        # تطبع نقطة كل 5 دقائق لمدة 5 ساعات (60 دورة * 5 دقائق = 300 دقيقة = 5 ساعات)
-        for i in $(seq 1 60); do
-          echo "[$(date '+%H:%M:%S')] Tunnel still active - $(($i * 5)) minutes elapsed"
-          sleep 300  # 5 دقائق
-        done
-        
-        echo "🛑 5 hours completed. Cleaning up..."
-        docker stop kali-desktop || true
-        docker rm kali-desktop || true
-        pkill -f "ssh.*serveo.net" || true
-        echo "✅ Cleanup done. Job will now terminate."
+      - name: Print Current Time
+        run: |
+          echo "✅ اختبار الجدولة شغال!"
+          echo "🕐 الوقت الحالي بتوقيت القاهرة: $(date)"
+          echo "🕐 الوقت بتوقيت UTC: $(date -u)"
+          echo "📅 التاريخ الكامل: $(date '+%Y-%m-%d %H:%M:%S %Z')"
