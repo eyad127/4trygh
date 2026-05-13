@@ -3,24 +3,21 @@ name: Kali-Linux-Web-Browser-Ultimate-Fixed
 on:
   workflow_dispatch:
   schedule:
-    - cron: '20 21 * * *'   # 00:20 مصر = 21:20 UTC
-    - cron: '25 2 * * *'    # 05:25 مصر = 02:25 UTC
-    - cron: '30 7 * * *'    # 10:30 مصر = 07:30 UTC
-    - cron: '35 12 * * *'   # 15:35 مصر = 12:35 UTC
-    - cron: '40 17 * * *'   # 20:40 مصر = 17:40 UTC
-    - cron: '45 22 * * *'   # 01:45 مصر = 22:45 UTC
+    # 00:00 مصر = 21:00 UTC (اليوم السابق)
+    - cron: '0 21 * * *'
+    # 06:00 مصر = 03:00 UTC
+    - cron: '0 3 * * *'
+    # 12:00 مصر = 09:00 UTC
+    - cron: '0 9 * * *'
+    # 18:00 مصر = 15:00 UTC
+    - cron: '0 15 * * *'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    
-    # ===== 1. تشغيل الحاوية بأقصى إمكانيات وتحسينات الأداء =====
-    - name: Run Kali Container (MAX Performance)
+    - name: Run Kali Container (MAX Capabilities)
       run: |
-        sudo mkdir -p /tmp/ramdisk
-        sudo mount -t tmpfs -o size=2g tmpfs /tmp/ramdisk
-        
         docker run -d \
           --name=kali-desktop \
           --hostname=kali \
@@ -39,44 +36,10 @@ jobs:
           -e TZ=Africa/Cairo \
           -e VNC_PR_PASSWORD=password \
           -e DISPLAY=:99 \
-          -e RESOLUTION=1920x1080 \
-          -e NOVNC_COMPRESS=1 \
-          -e NOVNC_QUALITY=9 \
           -v /dev/shm:/dev/shm \
-          -v /tmp/ramdisk:/tmp \
           linuxserver/kali-linux:latest
         sleep 45
 
-    # ===== 2. تحسين تسريع الرسوميات و noVNC =====
-    - name: Optimize Graphics & noVNC
-      run: |
-        docker exec kali-desktop bash -c "cat >> /etc/profile << 'EOF'
-        export NOVNC_VIEWONLY=false
-        export NOVNC_QUALITY=9
-        export NOVNC_COMPRESS=1
-        EOF"
-        
-        docker exec kali-desktop apt update -y
-        docker exec kali-desktop apt install -y mesa-utils x11vnc xvfb
-        
-        docker exec kali-desktop bash -c "mkdir -p /etc/X11/xorg.conf.d"
-        docker exec kali-desktop bash -c "cat > /etc/X11/xorg.conf.d/10-performance.conf << 'EOF'
-        Section \"Device\"
-            Identifier  \"Device0\"
-            Driver      \"modesetting\"
-            Option      \"AccelMethod\"   \"glamor\"
-        EndSection
-        Section \"Screen\"
-            Identifier \"Screen0\"
-            Device     \"Device0\"
-            SubSection \"Display\"
-                Depth    24
-                Modes    \"1920x1080\"
-            EndSubSection
-        EndSection
-        EOF"
-
-    # ===== 3. إعداد نفق Serveo بالمفتاح الخاص =====
     - name: Connect via Serveo Tunnel
       run: |
         mkdir -p ~/.ssh
@@ -138,24 +101,22 @@ jobs:
             -o ServerAliveInterval=30 \
             -o ServerAliveCountMax=5 \
             -o ExitOnForwardFailure=yes \
-            -o Compression=yes \
-            -o Ciphers=aes128-ctr,aes192-ctr,aes256-ctr \
             -R ahmed1258842255844595568llllkjjn-server:80:localhost:3000 serveo.net
 
-    # ===== 4. تشغيل 5 ساعات مع منع الإغلاق الصامت =====
-    - name: Keep Alive for 5 Hours
+    - name: Keep Alive for 5 Hours and 55 Minutes (then 5 min break)
       run: |
-        echo "✅ الحاوية تعمل بأقصى إمكانيات مع تحسينات الأداء"
-        echo "🌐 النفق نشط على: http://ahmed1258842255844595568llllkjjn-server.serveo.net"
-        echo "⏳ سيتم التشغيل 5 ساعات ثم تنظيف وبدء التالي بعد 5 دقائق"
-        
-        for i in $(seq 1 60); do
+        echo "✅ الحاوية تعمل بأقصى إمكانيات: 4 CPUs, 12GB RAM, 6GB SHM, ALL capabilities"
+        echo "🌐 النفق نشط لمدة 5 ساعات و 55 دقيقة"
+        echo "⏳ سيتم التنظيف ثم راحة 5 دقائق قبل الجوب التالي (فارق 6 ساعات بين البدءين)"
+
+        # 5 ساعات و 55 دقيقة = 355 دقيقة = 71 دورة × 5 دقائق
+        for i in $(seq 1 71); do
           echo "[$(TZ=Africa/Cairo date '+%H:%M:%S')] النفق نشط - $(($i * 5)) دقيقة"
           sleep 300
         done
-        
-        echo "🛑 انتهت الـ 5 ساعات. تنظيف الموارد..."
+
+        echo "🛑 انتهت مدة التشغيل. تنظيف الموارد..."
         docker stop kali-desktop || true
         docker rm kali-desktop || true
         pkill -f "ssh.*serveo.net" || true
-        echo "✅ تم التنظيف. سيبدأ الجوب التالي بعد حوالي 5 دقائق."
+        echo "✅ تم التنظيف. سيبدأ الجوب التالي بعد 5 دقائق (راحة)."
