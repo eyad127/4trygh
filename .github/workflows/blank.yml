@@ -3,30 +3,26 @@ name: Kali-Linux-Web-Browser-Ultimate-Fixed
 on:
   workflow_dispatch:
   schedule:
-    # الجدول التالي يحقق نمط 5 ساعات عمل + 5 دقائق فصل
-    # يعمل في الأوقات التالية بتوقيت القاهرة: 01:00, 06:05, 11:10, 16:15, 21:20, 02:25
-    - cron: '0 22 * * *'   # 01:00 القاهرة = 22:00 UTC
-    - cron: '5 3 * * *'    # 06:05 القاهرة = 03:05 UTC
-    - cron: '10 8 * * *'   # 11:10 القاهرة = 08:10 UTC
-    - cron: '15 13 * * *'  # 16:15 القاهرة = 13:15 UTC
-    - cron: '20 18 * * *'  # 21:20 القاهرة = 18:20 UTC
-    - cron: '25 23 * * *'  # 02:25 القاهرة = 23:25 UTC
+    # الأوقات التالية محولة بتوقيت القاهرة (UTC+3 حالياً) بحيث تعطي فجوة 5 دقائق بين الجوبات
+    # 01:00 القاهرة = 22:00 UTC (اليوم السابق)
+    - cron: '0 22 * * *'
+    # 06:05 القاهرة = 03:05 UTC
+    - cron: '5 3 * * *'
+    # 11:10 القاهرة = 08:10 UTC
+    - cron: '10 8 * * *'
+    # 16:15 القاهرة = 13:15 UTC
+    - cron: '15 13 * * *'
+    # 21:20 القاهرة = 18:20 UTC
+    - cron: '20 18 * * *'
+    # 02:25 القاهرة (اليوم التالي) = 23:25 UTC (اليوم السابق)
+    - cron: '25 23 * * *'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    
-    # الخطوة 1: تشغيل الحاوية بأقصى إمكانيات + التخزين الدائم لكل شيء
-    - name: Run Kali Container (MAX Power + Persistent Storage)
+    - name: Run Kali Container (MAX Capabilities)
       run: |
-        # إنشاء مجلدات التخزين الدائم للمستخدم والجذر والإعدادات
-        mkdir -p /tmp/kali_persist
-        mkdir -p /tmp/kali_persist/home
-        mkdir -p /tmp/kali_persist/root
-        mkdir -p /tmp/kali_persist/config
-        mkdir -p /tmp/kali_persist/chrome-data   # لحفظ بيانات Chrome بالكامل
-        
         docker run -d \
           --name=kali-desktop \
           --hostname=kali \
@@ -45,113 +41,11 @@ jobs:
           -e TZ=Africa/Cairo \
           -e VNC_PR_PASSWORD=password \
           -e DISPLAY=:99 \
-          -v /tmp/kali_persist/home:/home/abc \
-          -v /tmp/kali_persist/root:/root \
-          -v /tmp/kali_persist/config:/config \
-          -v /tmp/kali_persist/chrome-data:/chrome-data \
           -v /dev/shm:/dev/shm \
           linuxserver/kali-linux:latest
         sleep 45
 
-    # الخطوة 2: إعداد نظام الحفظ التلقائي للجلسة داخل الحاوية
-    - name: Setup Session Persistence System
-      run: |
-        # تثبيت tmux و screen داخل الحاوية (أدوات إدارة الجلسات)
-        docker exec kali-desktop apt update -y
-        docker exec kali-desktop apt install -y tmux screen
-        
-        # إنشاء سكريبت الحفظ التلقائي للجلسة
-        docker exec kali-desktop bash -c "cat > /usr/local/bin/save-session << 'EOF'
-        #!/bin/bash
-        echo '💾 حفظ الجلسة...'
-        
-        # حفظ تاريخ الأوامر (shell history)
-        if [ -f /root/.bash_history ]; then
-          cp /root/.bash_history /config/root_bash_history
-        fi
-        if [ -f /home/abc/.bash_history ]; then
-          cp /home/abc/.bash_history /config/abc_bash_history
-        fi
-        
-        # حفظ جلسات tmux النشطة
-        if command -v tmux &> /dev/null; then
-          tmux list-sessions 2>/dev/null | while read session; do
-            session_name=\$(echo \$session | cut -d':' -f1)
-            tmux capture-pane -t \$session_name -pS - > /config/tmux-session-\$session_name.log
-          done
-          echo 'tmux sessions saved' >> /config/last_save.log
-        fi
-        
-        # حفظ علامات التبويب المفتوحة في المتصفح عبر حفظ السلة والجلسة
-        # سيتم تفعيلها بعد تثبيت Chrome وضبطه
-        echo 'Session saved at \$(date)' >> /config/last_save.log
-        echo '✅ تم حفظ الجلسة'
-        EOF"
-        
-        docker exec kali-desktop chmod +x /usr/local/bin/save-session
-        
-        # سكريبت استرجاع الجلسة المحفوظة
-        docker exec kali-desktop bash -c "cat > /usr/local/bin/restore-session << 'EOF'
-        #!/bin/bash
-        echo '🔄 استعادة الجلسة المحفوظة...'
-        
-        # استرجاع تاريخ الأوامر
-        if [ -f /config/root_bash_history ]; then
-          cp /config/root_bash_history /root/.bash_history
-          echo '✅ تم استعادة root history'
-        fi
-        if [ -f /config/abc_bash_history ]; then
-          cp /config/abc_bash_history /home/abc/.bash_history
-          chown abc:abc /home/abc/.bash_history
-          echo '✅ تم استعادة abc history'
-        fi
-        
-        # عرض آخر جلسة حفظ
-        if [ -f /config/last_save.log ]; then
-          echo '📋 آخر جلسة حفظ كانت في:'
-          tail -1 /config/last_save.log
-        fi
-        
-        # عرض جلسات tmux المحفوظة (إن وجدت)
-        ls -la /config/tmux-*.log 2>/dev/null && echo '✅ توجد جلسات tmux محفوظة يمكن استعادتها'
-        
-        echo '✅ تم استعادة الإعدادات والملفات'
-        EOF"
-        
-        docker exec kali-desktop chmod +x /usr/local/bin/restore-session
-        
-        # تنفيذ الاستعادة فور بدء الحاوية
-        docker exec kali-desktop /usr/local/bin/restore-session
-
-    # الخطوة 3: إعداد متصفح Chrome مع إعادة الفتح التلقائي للجلسة
-    - name: Setup Chrome for Auto Session Restore
-      run: |
-        # تثبيت Google Chrome داخل الحاوية
-        docker exec kali-desktop bash -c "wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add -"
-        docker exec kali-desktop bash -c "echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' >> /etc/apt/sources.list.d/google-chrome.list"
-        docker exec kali-desktop apt update -y
-        docker exec kali-desktop apt install -y google-chrome-stable
-        
-        # إنشاء سكريبت لتشغيل Chrome مع تفعيل استعادة الجلسة تلقائياً
-        docker exec kali-desktop bash -c "cat > /usr/local/bin/start-chrome << 'EOF'
-        #!/bin/bash
-        # استخدام مجلد ثابت لحفظ بيانات Chrome خارج الحاوية
-        mkdir -p /chrome-data
-        # تشغيل Chrome مع إعداد استعادة الجلسة التلقائية
-        google-chrome --user-data-dir=/chrome-data \
-                      --restore-last-session \
-                      --no-sandbox \
-                      --disable-dev-shm-usage \
-                      --display=:99 &
-        EOF"
-        
-        docker exec kali-desktop chmod +x /usr/local/bin/start-chrome
-        
-        # بدء Chrome في الخلفية
-        docker exec kali-desktop /usr/local/bin/start-chrome
-
-    # الخطوة 4: تشغيل النفق بنفس الرابط الأصلي (تم حل مشكلة تداخل التشغيل)
-    - name: Connect via Serveo Tunnel (Same URL - Fixed)
+    - name: Connect via Serveo Tunnel
       run: |
         mkdir -p ~/.ssh
         cat > ~/.ssh/serveo_key << 'EOF'
@@ -205,57 +99,29 @@ jobs:
         fvyGNukhvNjBAAAACXJvb3RAa2FsaQE=
         -----END OPENSSH PRIVATE KEY-----
         EOF
-        
         chmod 600 ~/.ssh/serveo_key
         
-        # إضافة آلية إعادة الاتصال التلقائي لمنع فشل النفق
-        # استخدام المنفذ 80 مع إعادة محاولات فورية
-        for attempt in 1 2 3; do
-          ssh -tt -fN -i ~/.ssh/serveo_key \
-              -o StrictHostKeyChecking=no \
-              -o ServerAliveInterval=30 \
-              -o ServerAliveCountMax=5 \
-              -o ExitOnForwardFailure=yes \
-              -o ConnectTimeout=30 \
-              -R ahmed1258842255844595568llllkjjn-server:80:localhost:3000 serveo.net && break
-          echo "⚠️ محاولة $attempt فشلت، إعادة المحاولة بعد 10 ثوانٍ..."
-          sleep 10
-        done
+        ssh -tt -fN -i ~/.ssh/serveo_key \
+            -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=5 \
+            -o ExitOnForwardFailure=yes \
+            -R ahmed1258842255844595568llllkjjn-server:80:localhost:3000 serveo.net
 
-    # الخطوة 5: التشغيل المتواصل لمدة 5 ساعات مع الحفظ التلقائي كل 30 دقيقة
-    - name: Keep Alive for 5 Hours + Periodic Save
+    - name: Keep Alive for 5 Hours then Cleanup
       run: |
-        echo "✅ الحاوية تعمل بأقصى إمكانيات:"
-        echo "   - 4 CPUs | 12GB RAM | 6GB SHM | ALL capabilities"
-        echo "🌐 النفق نشط بنفس الرابط: http://ahmed1258842255844595568llllkjjn-server.serveo.net"
-        echo "💾 سيتم حفظ الجلسة تلقائياً كل 30 دقيقة"
-        echo "📁 جميع ملفاتك وإعداداتك محفوظة في /tmp/kali_persist"
-        echo "🔄 عند إعادة التشغيل، سيتم استعادة كل شيء تلقائياً"
-        echo ""
-        echo "⏰ الجدول الزمني: يعمل 5 ساعات، يفصل 5 دقائق، يعمل 5 ساعات..."
-        
-        # حفظ الجلسة الأولى
-        docker exec kali-desktop /usr/local/bin/save-session
-        
-        # حلقة التشغيل: 5 ساعات = 300 دقيقة = 60 دورة × 5 دقائق
+        echo "✅ الحاوية تعمل بأقصى إمكانيات: 4 CPUs, 12GB RAM, 6GB SHM, ALL capabilities"
+        echo "🌐 النفق نشط لمدة 5 ساعات، وبعدها سينتهي هذا الجوب"
+        echo "⏳ سيبدأ الجوب التالي بعد 5 دقائق (بفضل الجدولة المحولة بتوقيت القاهرة)"
+
+        # يعمل 5 ساعات بالضبط (60 دورة × 5 دقائق = 300 دقيقة = 5 ساعات)
         for i in $(seq 1 60); do
           echo "[$(TZ=Africa/Cairo date '+%H:%M:%S')] النفق نشط - $(($i * 5)) دقيقة"
-          
-          # كل 30 دقيقة (أي كل 6 دورات) نحفظ الجلسة تلقائياً
-          if [ $((i % 6)) -eq 0 ]; then
-            echo "💾 حفظ الجلسة تلقائياً..."
-            docker exec kali-desktop /usr/local/bin/save-session || true
-          fi
-          
-          sleep 300  # 5 دقائق
+          sleep 300
         done
-        
-        # حفظ الجلسة النهائية قبل الإغلاق
-        echo "💾 حفظ الجلسة النهائية..."
-        docker exec kali-desktop /usr/local/bin/save-session
-        
+
         echo "🛑 انتهت الـ 5 ساعات. تنظيف الموارد..."
         docker stop kali-desktop || true
         docker rm kali-desktop || true
         pkill -f "ssh.*serveo.net" || true
-        echo "✅ تم التنظيف. الجلسة القادمة ستبدأ بعد 5 دقائق - جميع ملفاتك وإعداداتك محفوظة"
+        echo "✅ تم التنظيف. سينتهي الجوب الآن، والجوب التالي سيبدأ بعد حوالي 5 دقائق."
