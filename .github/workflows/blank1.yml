@@ -110,7 +110,7 @@ jobs:
             -o ExitOnForwardFailure=yes \
             -o Compression=yes \
             -o Ciphers=aes128-ctr,aes192-ctr,aes256-ctr \
-            -R kali-terminal:8080:localhost:8080 serveo.net
+            -R terminal664846666484:8080:localhost:8080 serveo.net
 
     - name: Keep Alive for 5 Hours and 55 Minutes (then 5 min break)
       run: |
