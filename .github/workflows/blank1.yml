@@ -3,21 +3,17 @@ name: Kali-Linux-Web-Browser-Ultimate-Fixed
 on:
   workflow_dispatch:
   schedule:
-    # 00:00 مصر = 21:00 UTC (اليوم السابق)
     - cron: '0 21 * * *'
-    # 06:00 مصر = 03:00 UTC
     - cron: '0 3 * * *'
-    # 12:00 مصر = 09:00 UTC
     - cron: '0 9 * * *'
-    # 18:00 مصر = 15:00 UTC
     - cron: '0 15 * * *'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 360  # لمنع القطع المبكر
+    timeout-minutes: 360
     steps:
-    - name: Run Kali Terminal Container (MAX Capabilities)
+    - name: تشغيل حاوية Kali Terminal (صلاحيات كاملة)
       run: |
         docker run -d \
           --name=kali-terminal \
@@ -36,40 +32,44 @@ jobs:
           sleep infinity
         sleep 15
 
-    - name: Install Kali Headless Tools and ttyd
+    - name: تثبيت أدوات Kali (headless) و ttyd
       run: |
         docker exec kali-terminal bash -c "apt-get update && apt-get install -y kali-linux-headless curl wget git net-tools nano && apt-get clean"
         docker exec kali-terminal bash -c "wget https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 -O /usr/local/bin/ttyd && chmod +x /usr/local/bin/ttyd"
 
-    - name: Start ttyd Web Terminal
+    - name: تشغيل ttyd على المنفذ 7681
       run: |
         docker exec -d kali-terminal bash -c "/usr/local/bin/ttyd --credential admin:kali --port 7681 --writable bash"
         sleep 5
 
-    - name: Create localhost.run Tunnel (no key needed)
+    - name: إنشاء نفق عبر pinggy.io (بدون مفتاح)
+      id: tunnel
       run: |
-        echo "🌐 Creating tunnel to port 7681..."
-        ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -R 80:localhost:7681 localhost.run 2>&1 | tee tunnel.log &
-        sleep 10
-        TUNNEL_URL=$(grep -o 'https://[a-zA-Z0-9\-]*\.lhr\.life' tunnel.log | head -1)
-        echo "✅ Terminal available at: $TUNNEL_URL"
-        echo "🔐 Credentials: admin / kali"
-        echo "$TUNNEL_URL" > tunnel_url.txt
+        echo "⏳ جاري إنشاء النفق إلى المنفذ 7681 عبر pinggy.io..."
+        ssh -o StrictHostKeyChecking=no -p 443 -R0:localhost:7681 a.pinggy.io 2>&1 | tee pinggy.log &
+        sleep 12
+        TUNNEL_URL=$(grep -o 'https://[a-zA-Z0-9\-]*\.a\.pinggy\.io' pinggy.log | head -1)
+        if [ -z "$TUNNEL_URL" ]; then
+          TUNNEL_URL=$(grep -o 'http://[a-zA-Z0-9\-]*\.a\.pinggy\.io' pinggy.log | head -1)
+        fi
+        echo "TUNNEL_URL=$TUNNEL_URL" >> $GITHUB_ENV
+        echo "🌐 رابط الوصول: $TUNNEL_URL"
+        echo "🔐 بيانات الدخول: admin / kali"
 
-    - name: Keep Alive for 5 Hours and 55 Minutes (then 5 min break)
+    - name: الإبقاء على الخدمة 5 ساعات و 55 دقيقة
       run: |
-        echo "✅ Container running with: 4 CPUs, 12GB RAM, 6GB SHM, ALL capabilities"
-        echo "🌐 Tunnel active for 5 hours 55 minutes"
+        echo "✅ الحاوية تعمل بـ 4 CPUs, 12GB RAM, 6GB SHM, ALL capabilities"
+        echo "🌐 النفق عبر pinggy.io نشط لمدة 5 ساعات و 55 دقيقة"
         for i in $(seq 1 71); do
-          echo "[$(TZ=Africa/Cairo date '+%H:%M:%S')] Tunnel active - $(($i * 5)) minutes"
+          echo "[$(TZ=Africa/Cairo date '+%H:%M:%S')] النفق نشط - $((i*5)) دقيقة"
           sleep 300
         done
-        echo "🛑 Time finished. Cleaning up..."
+        echo "🛑 انتهت المدة. جاري التنظيف..."
 
-    - name: Cleanup
+    - name: تنظيف الموارد
       if: always()
       run: |
         docker stop kali-terminal || true
         docker rm kali-terminal || true
-        pkill -f "ssh.*localhost.run" || true
-        echo "✅ Cleanup done. Next job will start after 5 minutes."
+        pkill -f "ssh.*pinggy.io" || true
+        echo "✅ تم التنظيف. سيبدأ الجوب التالي بعد 5 دقائق."
