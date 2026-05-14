@@ -16,6 +16,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+    - name: Install autossh on runner
+      run: sudo apt-get update && sudo apt-get install -y autossh
+
     - name: Run Kali Terminal Container (Max Resources)
       run: |
         docker run -d \
@@ -36,9 +39,9 @@ jobs:
         echo "⏳ انتظار بدء الحاوية..."
         sleep 15
 
-        echo "📦 تثبيت أدوات كالي كاملة + SSH + autossh + tmux (لجلسات متعددة)..."
+        echo "📦 تثبيت أدوات كالي كاملة + SSH + tmux (لجلسات متعددة)..."
         docker exec kali-terminal apt-get update -y
-        docker exec kali-terminal apt-get install -y openssh-server sudo kali-linux-headless tmux screen autossh
+        docker exec kali-terminal apt-get install -y openssh-server sudo kali-linux-headless tmux screen
         docker exec kali-terminal bash -c "echo 'root:root' | chpasswd"
         docker exec kali-terminal bash -c "sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config"
         docker exec kali-terminal bash -c "sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config"
@@ -103,7 +106,7 @@ jobs:
         EOF
         chmod 600 ~/.ssh/serveo_key
 
-        # إنشاء تكوين SSH لدعم الجلسات المتعددة (SSH Multiplexing)
+        # إعداد SSH multiplexing لدعم الجلسات المتعددة
         mkdir -p ~/.ssh/sockets
         cat >> ~/.ssh/config << EOF
         Host serveo.net
@@ -116,14 +119,14 @@ jobs:
           StrictHostKeyChecking no
         EOF
 
-        # تشغيل النفق باستخدام autossh على المنفذ 8022 (بديل للمنفذ 22)
+        # إنشاء النفق باستخدام autossh على المنفذ 8022 (تجنب المنفذ 22)
         autossh -M 0 -f -N -i ~/.ssh/serveo_key \
-            -R ahmed1258842255844595568llllkjjn111-server:8022:localhost:2222 serveo.net
+          -R ahmed1258842255844595568llllkjjn111-server:8022:localhost:2222 serveo.net
 
-        echo "✅ نفق Serveo نشط على المنفذ 8022 (تم تجنب تعارض المنفذ 22)"
+        echo "✅ نفق Serveo نشط على المنفذ 8022"
         echo "🔗 الاتصال: ssh -p 8022 root@ahmed1258842255844595568llllkjjn111-server.serveo.net"
         echo "🔑 كلمة المرور: root"
-        echo "📌 بعد الاتصال، استخدم 'tmux' أو 'screen' لفتح عدة تباري/نوافذ"
+        echo "📌 يمكنك فتح عدة جلسات اتصال متزامنة من أجهزة مختلفة أو من نفس الجهاز"
 
     - name: Keep Alive for 5 Hours and 55 Minutes (then 5 min break)
       run: |
@@ -131,7 +134,6 @@ jobs:
         echo "🌐 النفق (SSH) نشط لمدة 5 ساعات و 55 دقيقة على المنفذ 8022"
         echo "⏳ سيتم التنظيف ثم راحة 5 دقائق قبل الجوب التالي"
 
-        # 5 ساعات و 55 دقيقة = 355 دقيقة = 71 دورة × 5 دقائق
         for i in $(seq 1 71); do
           echo "[$(TZ=Africa/Cairo date '+%H:%M:%S')] النفق نشط - $(($i * 5)) دقيقة"
           sleep 300
