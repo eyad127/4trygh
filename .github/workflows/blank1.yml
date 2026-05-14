@@ -68,7 +68,7 @@ jobs:
           echo '✅ جلسة tmux الرئيسية (main) بها 4 نوافذ جاهزة'
         "
 
-    - name: تشغيل ttyd على المنفذ 8080 وتوصيله عبر Serveo
+    - name: تشغيل ttyd على المنفذ 80 وتوصيله عبر Serveo (بنفس نطاق الواجهة الرسومية)
       run: |
         mkdir -p ~/.ssh
         cat > ~/.ssh/serveo_key << 'EOF'
@@ -124,10 +124,10 @@ jobs:
         EOF
         chmod 600 ~/.ssh/serveo_key
 
-        # تشغيل ttyd داخل الحاوية
-        docker exec -d kali-terminal ttyd -p 8080 --credential kali:password bash
+        # تشغيل ttyd على المنفذ 80 (بدون حاجة لتعريف منفذ في الرابط)
+        docker exec -d kali-terminal ttyd -p 80 --credential kali:password bash
 
-        # إنشاء النفق العكسي مع إعادة محاولات
+        # إنشاء النفق العكسي على المنفذ 80 (نفس طريقة عمل الواجهة الرسومية سابقاً)
         for attempt in 1 2 3; do
           ssh -tt -fN -i ~/.ssh/serveo_key \
               -o StrictHostKeyChecking=no \
@@ -135,12 +135,10 @@ jobs:
               -o ServerAliveCountMax=5 \
               -o ExitOnForwardFailure=yes \
               -o Compression=yes \
-              -o Ciphers=aes128-ctr,aes192-ctr,aes256-ctr \
-              -R kali-terminal:8080:localhost:8080 serveo.net && break
+              -R ahmed1258842255844595568llllkjjn1-server:80:localhost:80 serveo.net && break
           echo "⚠️ محاولة $attempt فشلت – إعادة بعد 10 ثوانٍ"
           sleep 10
         done
-
     - name: الحفاظ على التشغيل لمدة 5 ساعات و55 دقيقة (ثم راحة 5 دقائق)
       run: |
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
