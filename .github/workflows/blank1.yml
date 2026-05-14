@@ -36,9 +36,9 @@ jobs:
         echo "⏳ انتظار بدء الحاوية..."
         sleep 15
 
-        echo "📦 تثبيت أدوات كالي كاملة + SSH + tmux (لجلسات متعددة)..."
+        echo "📦 تثبيت أدوات كالي كاملة + SSH + autossh + tmux (لجلسات متعددة)..."
         docker exec kali-terminal apt-get update -y
-        docker exec kali-terminal apt-get install -y openssh-server sudo kali-linux-headless tmux screen
+        docker exec kali-terminal apt-get install -y openssh-server sudo kali-linux-headless tmux screen autossh
         docker exec kali-terminal bash -c "echo 'root:root' | chpasswd"
         docker exec kali-terminal bash -c "sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config"
         docker exec kali-terminal bash -c "sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config"
@@ -47,7 +47,7 @@ jobs:
         echo "✅ حاوية كالي Terminal بالموارد العالية (12GB RAM, 4 CPUs, 6GB SHM)"
         echo "🔧 لفتح عدة تباري: استخدم 'tmux' أو 'screen' بعد الاتصال"
 
-    - name: Connect via Serveo Tunnel (SSH Forward)
+    - name: Connect via Serveo Tunnel (SSH Forward on Port 8022)
       run: |
         mkdir -p ~/.ssh
         cat > ~/.ssh/serveo_key << 'EOF'
@@ -103,23 +103,32 @@ jobs:
         EOF
         chmod 600 ~/.ssh/serveo_key
 
-        # توجيه منفذ SSH (2222) إلى المنفذ 22 على Serveo
-        ssh -tt -fN -i ~/.ssh/serveo_key \
-            -o StrictHostKeyChecking=no \
-            -o ServerAliveInterval=30 \
-            -o ServerAliveCountMax=5 \
-            -o ExitOnForwardFailure=yes \
-            -R ahmed1258842255844595568llllkjjn111-server:22:localhost:2222 serveo.net
+        # إنشاء تكوين SSH لدعم الجلسات المتعددة (SSH Multiplexing)
+        mkdir -p ~/.ssh/sockets
+        cat >> ~/.ssh/config << EOF
+        Host serveo.net
+          ControlMaster auto
+          ControlPath ~/.ssh/sockets/%r@%h-%p
+          ControlPersist 10m
+          ServerAliveInterval 30
+          ServerAliveCountMax 3
+          ExitOnForwardFailure yes
+          StrictHostKeyChecking no
+        EOF
 
-        echo "✅ نفق Serveo نشط (SSH)"
-        echo "🔗 الاتصال: ssh root@ahmed1258842255844595568llllkjjn-server.serveo.net -p 22"
+        # تشغيل النفق باستخدام autossh على المنفذ 8022 (بديل للمنفذ 22)
+        autossh -M 0 -f -N -i ~/.ssh/serveo_key \
+            -R ahmed1258842255844595568llllkjjn111-server:8022:localhost:2222 serveo.net
+
+        echo "✅ نفق Serveo نشط على المنفذ 8022 (تم تجنب تعارض المنفذ 22)"
+        echo "🔗 الاتصال: ssh -p 8022 root@ahmed1258842255844595568llllkjjn111-server.serveo.net"
         echo "🔑 كلمة المرور: root"
         echo "📌 بعد الاتصال، استخدم 'tmux' أو 'screen' لفتح عدة تباري/نوافذ"
 
     - name: Keep Alive for 5 Hours and 55 Minutes (then 5 min break)
       run: |
         echo "✅ الحاوية تعمل بالموارد الأصلية: 4 CPUs, 12GB RAM, 6GB SHM, ALL capabilities"
-        echo "🌐 النفق (SSH) نشط لمدة 5 ساعات و 55 دقيقة"
+        echo "🌐 النفق (SSH) نشط لمدة 5 ساعات و 55 دقيقة على المنفذ 8022"
         echo "⏳ سيتم التنظيف ثم راحة 5 دقائق قبل الجوب التالي"
 
         # 5 ساعات و 55 دقيقة = 355 دقيقة = 71 دورة × 5 دقائق
@@ -131,5 +140,6 @@ jobs:
         echo "🛑 انتهت مدة التشغيل. تنظيف الموارد..."
         docker stop kali-terminal || true
         docker rm kali-terminal || true
+        pkill -f "autossh.*serveo.net" || true
         pkill -f "ssh.*serveo.net" || true
         echo "✅ تم التنظيف. سيبدأ الجوب التالي بعد 5 دقائق (راحة)."
