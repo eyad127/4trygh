@@ -1,28 +1,24 @@
-name: Kali-Linux-Terminal-Ultimate-Fixed
+name: Kali-Web-Terminal
 
 on:
   workflow_dispatch:
   schedule:
-    # 00:00 مصر = 21:00 UTC (اليوم السابق)
     - cron: '0 21 * * *'
-    # 06:00 مصر = 03:00 UTC
     - cron: '0 3 * * *'
-    # 12:00 مصر = 09:00 UTC
     - cron: '0 9 * * *'
-    # 18:00 مصر = 15:00 UTC
     - cron: '0 15 * * *'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Install autossh on runner
-      run: sudo apt-get update && sudo apt-get install -y autossh
+    - name: Install ttyd on runner (for local test)
+      run: sudo apt-get update && sudo apt-get install -y ttyd
 
-    - name: Run Kali Terminal Container (Max Resources)
+    - name: Run Kali Container (Max Resources)
       run: |
         docker run -d \
-          --name=kali-terminal \
+          --name=kali-web-term \
           --hostname=kali \
           --cap-add=ALL \
           --security-opt seccomp=unconfined \
@@ -32,25 +28,24 @@ jobs:
           --memory-reservation="10g" \
           --cpus="4" \
           --pids-limit=-1 \
-          -p 2222:22 \
+          -p 8080:8080 \
           -v /dev/shm:/dev/shm \
           kalilinux/kali-rolling:latest sleep infinity
 
         echo "⏳ انتظار بدء الحاوية..."
         sleep 15
 
-        echo "📦 تثبيت أدوات كالي كاملة + SSH + tmux (لجلسات متعددة)..."
-        docker exec kali-terminal apt-get update -y
-        docker exec kali-terminal apt-get install -y openssh-server sudo kali-linux-headless tmux screen
-        docker exec kali-terminal bash -c "echo 'root:root' | chpasswd"
-        docker exec kali-terminal bash -c "sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config"
-        docker exec kali-terminal bash -c "sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config"
-        docker exec kali-terminal service ssh start
+        echo "📦 تثبيت أدوات كالي + ttyd (محطة ويب)..."
+        docker exec kali-web-term apt-get update -y
+        docker exec kali-web-term apt-get install -y kali-linux-headless ttyd tmux screen
+        docker exec kali-web-term bash -c "echo 'root:root' | chpasswd"
 
-        echo "✅ حاوية كالي Terminal بالموارد العالية (12GB RAM, 4 CPUs, 6GB SHM)"
-        echo "🔧 لفتح عدة تباري: استخدم 'tmux' أو 'screen' بعد الاتصال"
+        echo "🚀 تشغيل ttyd على المنفذ 8080..."
+        docker exec -d kali-web-term ttyd --port 8080 --credential root:root bash
 
-    - name: Connect via Serveo Tunnel (SSH Forward on Port 8022)
+        echo "✅ Terminal متاح محلياً على http://localhost:8080"
+
+    - name: Expose via Serveo (Web Terminal as a site)
       run: |
         mkdir -p ~/.ssh
         cat > ~/.ssh/serveo_key << 'EOF'
@@ -106,42 +101,25 @@ jobs:
         EOF
         chmod 600 ~/.ssh/serveo_key
 
-        # إعداد SSH multiplexing لدعم الجلسات المتعددة
-        mkdir -p ~/.ssh/sockets
-        cat >> ~/.ssh/config << EOF
-        Host serveo.net
-          ControlMaster auto
-          ControlPath ~/.ssh/sockets/%r@%h-%p
-          ControlPersist 10m
-          ServerAliveInterval 30
-          ServerAliveCountMax 3
-          ExitOnForwardFailure yes
-          StrictHostKeyChecking no
-        EOF
+        # نستخدم إعادة توجيه HTTP (serveo يعرف أن المنفذ 8080 هو موقع ويب)
+        ssh -tt -fN -i ~/.ssh/serveo_key \
+          -o StrictHostKeyChecking=no \
+          -o ServerAliveInterval=30 \
+          -R ahmed1258842255844595568llllkjjn111-server:80:localhost:8080 serveo.net
 
-        # إنشاء النفق باستخدام autossh على المنفذ 8022 (تجنب المنفذ 22)
-        autossh -M 0 -f -N -i ~/.ssh/serveo_key \
-          -R ahmed1258842255844595568llllkjjn111-server:8022:localhost:2222 serveo.net
+        echo "✅ تم نشر Terminal كموقع ويب على الرابط:"
+        echo "🌐 http://ahmed1258842255844595568llllkjjn111-server.serveo.net"
+        echo "🔑 اسم المستخدم: root   كلمة المرور: root"
+        echo "📌 يمكنك فتح عدة تباري في المتصفح (نوافذ/علامات تبويب)"
 
-        echo "✅ نفق Serveo نشط على المنفذ 8022"
-        echo "🔗 الاتصال: ssh -p 8022 root@ahmed1258842255844595568llllkjjn111-server.serveo.net"
-        echo "🔑 كلمة المرور: root"
-        echo "📌 يمكنك فتح عدة جلسات اتصال متزامنة من أجهزة مختلفة أو من نفس الجهاز"
-
-    - name: Keep Alive for 5 Hours and 55 Minutes (then 5 min break)
+    - name: Keep Alive for 5 Hours and 55 Minutes
       run: |
-        echo "✅ الحاوية تعمل بالموارد الأصلية: 4 CPUs, 12GB RAM, 6GB SHM, ALL capabilities"
-        echo "🌐 النفق (SSH) نشط لمدة 5 ساعات و 55 دقيقة على المنفذ 8022"
-        echo "⏳ سيتم التنظيف ثم راحة 5 دقائق قبل الجوب التالي"
-
+        echo "✅ Terminal متاح عبر الويب بالموارد الكاملة (12GB RAM, 4 CPUs)"
         for i in $(seq 1 71); do
-          echo "[$(TZ=Africa/Cairo date '+%H:%M:%S')] النفق نشط - $(($i * 5)) دقيقة"
+          echo "[$(TZ=Africa/Cairo date '+%H:%M:%S')] الخدمة نشطة - $(($i * 5)) دقيقة"
           sleep 300
         done
-
-        echo "🛑 انتهت مدة التشغيل. تنظيف الموارد..."
-        docker stop kali-terminal || true
-        docker rm kali-terminal || true
-        pkill -f "autossh.*serveo.net" || true
+        docker stop kali-web-term || true
+        docker rm kali-web-term || true
         pkill -f "ssh.*serveo.net" || true
-        echo "✅ تم التنظيف. سيبدأ الجوب التالي بعد 5 دقائق (راحة)."
+        echo "✅ تم التنظيف."
