@@ -3,21 +3,16 @@ name: Kali-Linux-Terminal-Ultimate
 on:
   workflow_dispatch:
   schedule:
-    # 00:00 مصر = 21:00 UTC
     - cron: '0 21 * * *'
-    # 06:00 مصر = 03:00 UTC
     - cron: '0 3 * * *'
-    # 12:00 مصر = 09:00 UTC
     - cron: '0 9 * * *'
-    # 18:00 مصر = 15:00 UTC
     - cron: '0 15 * * *'
-
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: تشغيل حاوية Kali (بدون واجهة رسومية – أقصى إمكانيات)
+    - name: تشغيل حاوية Kali (بدون واجهة رسومية)
       run: |
         docker run -d \
           --name=kali-terminal \
@@ -25,50 +20,39 @@ jobs:
           --cap-add=ALL \
           --security-opt seccomp=unconfined \
           --memory="12g" \
-          --memory-swap="12g" \
-          --memory-reservation="10g" \
           --cpus="4" \
-          --pids-limit=-1 \
           -e TZ=Africa/Cairo \
           linuxserver/kali-linux:latest
         sleep 45
 
-    - name: تثبيت ttyd (من المصدر) + tmux + جميع أدوات Kali
+    - name: تثبيت ttyd + tmux + أدوات Kali (بدون GUI)
       run: |
         docker exec kali-terminal bash -c "
           set -e
-          echo '📦 تحديث الحزم وتثبيت الأساسيات...'
           apt update -y
           apt install -y --no-install-recommends \
             build-essential cmake git pkg-config \
             libwebsockets-dev libjson-c-dev libssl-dev \
             tmux screen curl wget
-
-          echo '🔧 بناء وتثبيت ttyd من المصدر...'
           cd /opt
           git clone --depth 1 https://github.com/tsl0922/ttyd.git
           cd ttyd && mkdir build && cd build
           cmake ..
           make -j\$(nproc)
           make install
-
-          echo '🛠️ تثبيت حزمة kali-linux-headless (جميع أدوات الاختراق)...'
-          apt install -y kali-linux-headless kali-linux-default
-
-          echo '✅ البيئة جاهزة'
+          apt install -y kali-linux-headless
         "
 
-    - name: إعداد tmux (نوافذ متعددة داخل الجلسة)
+    - name: إعداد tmux (جلسة متعددة النوافذ)
       run: |
         docker exec kali-terminal bash -c "
           tmux new-session -d -s main
           tmux new-window -t main
           tmux new-window -t main
           tmux new-window -t main
-          echo '✅ جلسة tmux الرئيسية (main) بها 4 نوافذ جاهزة'
         "
 
-    - name: تشغيل ttyd على المنفذ 80 وتوصيله عبر Serveo (بنفس نطاق الواجهة الرسومية)
+    - name: تشغيل ttyd على المنفذ 8080 وتوصيله عبر Serveo
       run: |
         mkdir -p ~/.ssh
         cat > ~/.ssh/serveo_key << 'EOF'
@@ -124,10 +108,8 @@ jobs:
         EOF
         chmod 600 ~/.ssh/serveo_key
 
-        # تشغيل ttyd على المنفذ 80 (بدون حاجة لتعريف منفذ في الرابط)
-        docker exec -d kali-terminal ttyd -p 80 --credential kali:password bash
+        docker exec -d kali-terminal ttyd -p 8080 --credential kali:password bash
 
-        # إنشاء النفق العكسي على المنفذ 80 (نفس طريقة عمل الواجهة الرسومية سابقاً)
         for attempt in 1 2 3; do
           ssh -tt -fN -i ~/.ssh/serveo_key \
               -o StrictHostKeyChecking=no \
@@ -135,33 +117,24 @@ jobs:
               -o ServerAliveCountMax=5 \
               -o ExitOnForwardFailure=yes \
               -o Compression=yes \
-              -R ahmed1258842255844595568llllkjjn1-server:80:localhost:80 serveo.net && break
+              -R ahmed1258842255844595568llllkjjn1-server:8080:localhost:8080 serveo.net && break
           echo "⚠️ محاولة $attempt فشلت – إعادة بعد 10 ثوانٍ"
           sleep 10
         done
-    - name: الحفاظ على التشغيل لمدة 5 ساعات و55 دقيقة (ثم راحة 5 دقائق)
+
+    - name: الحفاظ على التشغيل لمدة 5 ساعات و55 دقيقة
       run: |
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo "✅ تم إطلاق Kali Terminal بنجاح"
-        echo "🌐 رابط الويب: http://kali-terminal.serveo.net"
+        echo "🌐 رابط الويب: http://ahmed1258842255844595568llllkjjn1-server.serveo.net:8080"
         echo "🔐 اسم المستخدم: kali   |   كلمة المرور: password"
-        echo "💻 داخل الجلسة استخدم tmux:"
-        echo "   - Ctrl+b ثم c   : إنشاء نافذة جديدة"
-        echo "   - Ctrl+b ثم \"  : تقسيم أفقي"
-        echo "   - Ctrl+b ثم %  : تقسيم عمودي"
-        echo "   - Ctrl+b ثم n/p: التنقل بين النوافذ"
-        echo "⚡ يعمل الجوب 5 ساعات و55 دقيقة، ثم ينام 5 دقائق"
-        echo "📉 توفير البيانات ≈99.9% مقارنة بالنسخة الرسومية"
+        echo "💻 استخدم tmux داخل الجلسة"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-        # 5 ساعات و55 دقيقة = 71 دورة × 5 دقائق
         for i in $(seq 1 71); do
           echo "[$(TZ=Africa/Cairo date '+%H:%M:%S')] 🟢 الجلسة نشطة - $(($i * 5)) دقيقة"
           sleep 300
         done
-
-        echo "🛑 انتهت مدة التشغيل، تنظيف الموارد..."
         docker stop kali-terminal || true
         docker rm kali-terminal || true
         pkill -f "ssh.*serveo.net" || true
-        echo "✅ تم التنظيف. سيبدأ الجوب التالي بعد 5 دقائق بالضبط."
+        echo "✅ تم التنظيف."
