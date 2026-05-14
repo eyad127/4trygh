@@ -3,16 +3,20 @@ name: Kali-Web-Terminal-Ultimate
 on:
   workflow_dispatch:
   schedule:
+    # 00:00 مصر = 21:00 UTC (اليوم السابق)
     - cron: '0 21 * * *'
+    # 06:00 مصر = 03:00 UTC
     - cron: '0 3 * * *'
+    # 12:00 مصر = 09:00 UTC
     - cron: '0 9 * * *'
+    # 18:00 مصر = 15:00 UTC
     - cron: '0 15 * * *'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Run Kali container with max resources
+      - name: Run Kali container with maximum resources
         run: |
           docker run -d \
             --name=kali-web \
@@ -28,27 +32,29 @@ jobs:
             -p 8080:8080 \
             -v /dev/shm:/dev/shm \
             kalilinux/kali-rolling:latest sleep infinity
+          echo "⏳ انتظار بدء الحاوية..."
           sleep 15
 
-      - name: Install Kali tools, Node.js, npm, and Wetty
+      - name: Install Kali tools and Web Terminal
         run: |
-          # تثبيت جميع أدوات كالي الأساسية والكاملة
+          echo "📦 تثبيت أدوات كالي كاملة..."
           docker exec kali-web apt-get update -y
           docker exec kali-web apt-get install -y kali-linux-headless tmux screen sudo wget curl
-
-          # تثبيت Node.js و npm مباشرة من مستودعات Kali (موجودان)
+          
+          echo "🔧 تثبيت Node.js و npm..."
           docker exec kali-web apt-get install -y nodejs npm
-
-          # تثبيت wetty عالمياً
-          docker exec kali-web npm install -g wetty
-
-          # تعيين كلمة مرور للدخول إلى الواجهة
+          
+          echo "🌐 تثبيت WeTTY (النسخة المستقرة)..."
+          docker exec kali-web npm install -g wetty@2.5.0
+          
+          echo "🔑 إعداد كلمة مرور المستخدم root..."
           docker exec kali-web bash -c "echo 'root:root' | chpasswd"
-
-          # تشغيل wetty على المنفذ 8080 مع المصادقة
+          
+          echo "🚀 تشغيل WeTTY..."
           docker exec -d kali-web wetty --port 8080 --host 0.0.0.0 --auth root:root --command bash
+          echo "✅ WeTTY terminal ready on port 8080"
 
-      - name: Expose via Serveo (HTTP tunnel)
+      - name: Expose via Serveo (using a high port)
         run: |
           mkdir -p ~/.ssh
           cat > ~/.ssh/serveo_key << 'EOF'
@@ -104,16 +110,15 @@ jobs:
           EOF
           chmod 600 ~/.ssh/serveo_key
 
-          # إعادة توجيه HTTP (منفذ 80) إلى منفذ الويب 8080 داخل الحاوية
-          ssh -tt -fN -i ~/.ssh/serveo_key \
-            -o StrictHostKeyChecking=no \
-            -o ServerAliveInterval=30 \
-            -o ServerAliveCountMax=5 \
-            -o ExitOnForwardFailure=yes \
-            -R ahmed1258842255844595568llllkjjn111-server:80:localhost:8080 serveo.net
+          echo "🌐 بدء إنشاء النفق على منفذ عالٍ لتجنب أي أخطاء..."
+          ssh -o StrictHostKeyChecking=no -fNT -i ~/.ssh/serveo_key \
+            -R ahmed1258842255844595568llllkjjn111-server:8080:localhost:8080 serveo.net
 
-          echo "✅ Web terminal ready: http://ahmed1258842255844595568llllkjjn111-server.serveo.net"
-          echo "🔐 Login: root / root"
+          echo "====================================================="
+          echo "🌍 الويب تيرمينال متاح الآن على الرابط التالي:"
+          echo "🔗 http://ahmed1258842255844595568llllkjjn111-server.serveo.net:8080"
+          echo "🔑 Login: root / root"
+          echo "====================================================="
 
       - name: Keep alive for 5h55m (then cleanup)
         run: |
