@@ -3,16 +3,20 @@ name: Kali-Linux-Web-Browser-Ultimate-Fixed
 on:
   workflow_dispatch:
   schedule:
+    # 00:00 مصر = 21:00 UTC (اليوم السابق)
     - cron: '0 21 * * *'
+    # 06:00 مصر = 03:00 UTC
     - cron: '0 3 * * *'
+    # 12:00 مصر = 09:00 UTC
     - cron: '0 9 * * *'
+    # 18:00 مصر = 15:00 UTC
     - cron: '0 15 * * *'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: تشغيل حاوية Kali (نفس الإعدادات)
+    - name: تشغيل حاوية Kali (وضع طرفية - بدون واجهة رسومية)
       run: |
         docker run -d \
           --name=kali-terminal \
@@ -25,27 +29,30 @@ jobs:
           --memory-reservation="10g" \
           --cpus="4" \
           --pids-limit=-1 \
-          -p 7681:7681 \
+          -p 7681:7681 \     # تغيير: المنفذ أصبح 7681 خاص بـ ttyd
           -e TZ=Africa/Cairo \
-          kalilinux/kali-rolling:latest \
+          kalilinux/kali-rolling:latest \   # تغيير: استخدام الصورة الأساسية بدون واجهة رسومية
           sleep infinity
         sleep 15
 
     - name: تثبيت أدوات Kali (بدون واجهة رسومية) وتحميل ttyd
       run: |
+        # تثبيت مجموعة أدوات كالي كاملة بدون الحاجة لواجهة رسومية
         docker exec kali-terminal bash -c "
           apt-get update && \
           apt-get install -y kali-linux-headless curl wget git net-tools nano \
           && apt-get clean
         "
-        echo "⬇️ جاري تحميل ttyd من GitHub Releases..."
+        echo "⬇️ جاري تحميل وتثبيت ttyd (خادم الطرفية عبر الويب)..."
+        # تنزيل ملف ttyd الثنائي وتثبيته يدويًا لأنه غير متوفر في المستودعات الرسمية
         docker exec kali-terminal bash -c "
           wget https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 -O /usr/local/bin/ttyd && \
           chmod +x /usr/local/bin/ttyd
         "
 
-    - name: تشغيل خدمة ttyd
+    - name: تشغيل خدمة ttyd (طرفية ويب متعددة الجلسات)
       run: |
+        # تشغيل خادم ttyd لربط الواجهة الطرفية بالويب
         docker exec -d kali-terminal bash -c "
           /usr/local/bin/ttyd --credential admin:kali --port 7681 --writable bash
         "
@@ -107,17 +114,18 @@ jobs:
         EOF
         chmod 600 ~/.ssh/serveo_key
         
+        # تغيير: تحويل النفق من المنفذ 3000 (GUI) إلى المنفذ 7681 (ttyd)
         ssh -tt -fN -i ~/.ssh/serveo_key \
             -o StrictHostKeyChecking=no \
             -o ServerAliveInterval=30 \
             -o ServerAliveCountMax=5 \
             -o ExitOnForwardFailure=yes \
-            -R ahmed1258842255844595568llllkjjn1111111-server:80:localhost:7681 serveo.net
+            -R ahmed1258842255844595568llllkjjn-server:80:localhost:7681 serveo.net
 
-    - name: الإبقاء على الخدمة (نفس المدة)
+    - name: الإبقاء على الخدمة (5 ساعات و 55 دقيقة ثم راحة 5 دقائق)
       run: |
         echo "✅ بيئة Kali Terminal تعمل بنفس إعدادات الأصل"
-        echo "🌐 رابط الوصول: http://ahmed1258842255844595568llllkjjn1111111-server.serveo.net"
+        echo "🌐 رابط الوصول: http://ahmed1258842255844595568llllkjjn-server.serveo.net"
         echo "🔐 بيانات الدخول: admin / kali"
         echo "💻 يمكنك فتح عدة علامات تبويب (كل واحدة جلسة طرفية مستقلة)"
         echo "📉 استهلاك البيانات أقل بنسبة >99% مقارنة بالواجهة الرسومية"
