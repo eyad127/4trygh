@@ -112,12 +112,12 @@ jobs:
             -o ServerAliveInterval=30 \
             -o ServerAliveCountMax=5 \
             -o ExitOnForwardFailure=yes \
-            -R ahmed1258842255844595568llllkjjn111-server:80:localhost:7681 serveo.net
+            -R ahmed1258842255844595568llllkjjn1111111-server:80:localhost:7681 serveo.net
 
     - name: الإبقاء على الخدمة (نفس المدة)
       run: |
         echo "✅ بيئة Kali Terminal تعمل بنفس إعدادات الأصل"
-        echo "🌐 رابط الوصول: http://ahmed1258842255844595568llllkjjn111-server.serveo.net"
+        echo "🌐 رابط الوصول: http://ahmed1258842255844595568llllkjjn1111111-server.serveo.net"
         echo "🔐 بيانات الدخول: admin / kali"
         echo "💻 يمكنك فتح عدة علامات تبويب (كل واحدة جلسة طرفية مستقلة)"
         echo "📉 استهلاك البيانات أقل بنسبة >99% مقارنة بالواجهة الرسومية"
