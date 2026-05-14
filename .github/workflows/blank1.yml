@@ -12,10 +12,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Install dependencies on runner
-        run: sudo apt-get update && sudo apt-get install -y wget
-
-      - name: Run Kali container with maximum resources
+      - name: Run Kali container with max resources
         run: |
           docker run -d \
             --name=kali-web \
@@ -33,29 +30,25 @@ jobs:
             kalilinux/kali-rolling:latest sleep infinity
           sleep 15
 
-      - name: Install Kali tools + Web terminal (Wetty)
+      - name: Install Kali tools, Node.js, npm, and Wetty
         run: |
-          # تثبيت الأدوات الأساسية والكاملة لكالي
+          # تثبيت جميع أدوات كالي الأساسية والكاملة
           docker exec kali-web apt-get update -y
-          docker exec kali-web apt-get install -y kali-linux-headless tmux screen sudo wget
+          docker exec kali-web apt-get install -y kali-linux-headless tmux screen sudo wget curl
 
-          # تثبيت Node.js (مطلوب لـ Wetty)
-          docker exec kali-web apt-get install -y curl
-          docker exec kali-web curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-          docker exec kali-web apt-get install -y nodejs
+          # تثبيت Node.js و npm مباشرة من مستودعات Kali (موجودان)
+          docker exec kali-web apt-get install -y nodejs npm
 
-          # تثبيت Wetty (محطة ويب تفاعلية)
+          # تثبيت wetty عالمياً
           docker exec kali-web npm install -g wetty
 
-          # إعداد كلمة مرور للمستخدم root (للدخول إلى الويب تيرمينال)
+          # تعيين كلمة مرور للدخول إلى الواجهة
           docker exec kali-web bash -c "echo 'root:root' | chpasswd"
 
-          # تشغيل Wetty على المنفذ 8080، بدون SSL (لأن Serveo سيتولى HTTPS)
-          docker exec -d kali-web wetty --port 8080 --auth root:root --command bash
+          # تشغيل wetty على المنفذ 8080 مع المصادقة
+          docker exec -d kali-web wetty --port 8080 --host 0.0.0.0 --auth root:root --command bash
 
-          echo "✅ Wetty terminal ready on port 8080"
-
-      - name: Expose via Serveo (working HTTP tunnel)
+      - name: Expose via Serveo (HTTP tunnel)
         run: |
           mkdir -p ~/.ssh
           cat > ~/.ssh/serveo_key << 'EOF'
@@ -111,17 +104,18 @@ jobs:
           EOF
           chmod 600 ~/.ssh/serveo_key
 
-          # إعادة توجيه HTTP (منفذ 80) إلى port 8080
+          # إعادة توجيه HTTP (منفذ 80) إلى منفذ الويب 8080 داخل الحاوية
           ssh -tt -fN -i ~/.ssh/serveo_key \
             -o StrictHostKeyChecking=no \
             -o ServerAliveInterval=30 \
             -o ServerAliveCountMax=5 \
+            -o ExitOnForwardFailure=yes \
             -R ahmed1258842255844595568llllkjjn111-server:80:localhost:8080 serveo.net
 
-          echo "✅ Web terminal available at: http://ahmed1258842255844595568llllkjjn111-server.serveo.net"
-          echo "🔑 Username: root   Password: root"
+          echo "✅ Web terminal ready: http://ahmed1258842255844595568llllkjjn111-server.serveo.net"
+          echo "🔐 Login: root / root"
 
-      - name: Keep alive for 5h55m (then break)
+      - name: Keep alive for 5h55m (then cleanup)
         run: |
           for i in {1..71}; do
             echo "[$(TZ=Africa/Cairo date '+%H:%M:%S')] Service running - $((i*5)) min"
