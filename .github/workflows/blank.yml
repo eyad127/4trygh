@@ -1,4 +1,4 @@
-name: Kali-Linux-Web-Browser-Ultimate-Fixed
+name: Kali-Linux-Desktop
 
 on:
   workflow_dispatch:
@@ -15,8 +15,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
     steps:
-    - name: Run Kali Container (MAX Capabilities)
+    - name: تشغيل حاوية Kali (سطح مكتب كامل)
       run: |
         docker run -d \
           --name=kali-desktop \
@@ -40,32 +41,32 @@ jobs:
           linuxserver/kali-linux:latest
         sleep 45
 
-    - name: Create pinggy.io Tunnel (no SSH key required)
+    - name: تنزيل أداة Cloudflared
       run: |
-        echo "⏳ Creating tunnel to port 3000 via pinggy.io..."
-        ssh -o StrictHostKeyChecking=no -p 443 -R0:localhost:3000 a.pinggy.io 2>&1 | tee pinggy.log &
-        sleep 12
-        TUNNEL_URL=$(grep -o 'https://[a-zA-Z0-9\-]*\.a\.pinggy\.io' pinggy.log | head -1)
-        if [ -z "$TUNNEL_URL" ]; then
-          TUNNEL_URL=$(grep -o 'http://[a-zA-Z0-9\-]*\.a\.pinggy\.io' pinggy.log | head -1)
-        fi
-        echo "🌐 GUI Access URL: $TUNNEL_URL"
-        echo "🔐 VNC Password: password (if asked)"
-        echo "✅ Tunnel is active. Open the URL in your browser."
+        wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared
+        chmod +x cloudflared
 
-    - name: Keep Alive for 5 Hours and 55 Minutes (then 5 min break)
+    - name: إنشاء نفق TryCloudflare (رابط عام ومجاني)
       run: |
-        echo "✅ الحاوية تعمل بأقصى إمكانيات: 4 CPUs, 12GB RAM, 6GB SHM, ALL capabilities"
-        echo "🌐 النفق عبر pinggy.io نشط لمدة 5 ساعات و 55 دقيقة"
-        echo "⏳ سيتم التنظيف ثم راحة 5 دقائق قبل الجوب التالي (فارق 6 ساعات بين البدءين)"
+        echo "⏳ جاري إنشاء النفق إلى المنفذ 3000 عبر TryCloudflare..."
+        ./cloudflared tunnel --url http://localhost:3000 2>&1 | tee cloudflared.log &
+        sleep 15
+        TUNNEL_URL=$(grep -o 'https://[a-zA-Z0-9.-]*\.trycloudflare\.com' cloudflared.log | head -1)
+        echo "🌐 رابط الوصول (بيئة رسومية كاملة): $TUNNEL_URL"
+        echo "🔐 كلمة مرور VNC (للوصول إلى سطح المكتب): password"
 
-        for i in $(seq 1 71); do
-          echo "[$(TZ=Africa/Cairo date '+%H:%M:%S')] النفق نشط - $(($i * 5)) دقيقة"
+    - name: الإبقاء على الخدمة 5 ساعات و 55 دقيقة
+      run: |
+        echo "✅ الحاوية تعمل: 4 CPUs, 12GB RAM, ALL capabilities"
+        for i in {1..71}; do
+          echo "[$(TZ=Africa/Cairo date '+%H:%M:%S')] النفق نشط - $((i*5)) دقيقة"
           sleep 300
         done
 
-        echo "🛑 انتهت مدة التشغيل. تنظيف الموارد..."
+    - name: تنظيف الموارد
+      if: always()
+      run: |
         docker stop kali-desktop || true
         docker rm kali-desktop || true
-        pkill -f "ssh.*pinggy.io" || true
-        echo "✅ تم التنظيف. سيبدأ الجوب التالي بعد 5 دقائق (راحة)."
+        pkill -f cloudflared || true
+        echo "✅ تم التنظيف."
